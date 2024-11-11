@@ -26,7 +26,7 @@ import (
 	"github.com/dominant-strategies/go-quai/core/state"
 	"github.com/dominant-strategies/go-quai/core/types"
 	"github.com/dominant-strategies/go-quai/log"
-	"github.com/dominant-strategies/go-quai/multiset"
+	"github.com/dominant-strategies/go-quai/crypto/multiset"
 	"github.com/dominant-strategies/go-quai/params"
 	"github.com/dominant-strategies/go-quai/trie"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -61,12 +61,6 @@ func NewBlockValidator(config *params.ChainConfig, headerChain *HeaderChain, eng
 // validated at this point.
 func (v *BlockValidator) ValidateBody(block *types.WorkObject) error {
 	nodeCtx := v.config.Location.Context()
-	// Check whether the block's known, and if not, that it's linkable
-	if nodeCtx == common.ZONE_CTX && v.hc.ProcessingState() {
-		if v.hc.bc.processor.HasBlockAndState(block.Hash(), block.NumberU64(nodeCtx)) {
-			return ErrKnownBlock
-		}
-	}
 	header := block.Header()
 	// Subordinate manifest must match ManifestHash in subordinate context, _iff_
 	// we have a subordinate (i.e. if we are not a zone)
