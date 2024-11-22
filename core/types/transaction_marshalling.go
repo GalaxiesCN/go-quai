@@ -173,9 +173,10 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 			return errors.New("missing required field 'gasPrice' in internal transaction")
 		}
 		itx.GasPrice = (*big.Int)(dec.GasPrice)
-		if dec.Gas != nil {
-			itx.Gas = uint64(*dec.Gas)
+		if dec.Gas == nil {
+			return errors.New("missing required field 'gas' in internal transaction")
 		}
+		itx.Gas = uint64(*dec.Gas)
 		if dec.Value == nil {
 			return errors.New("missing required field 'value' in internal transaction")
 		}
