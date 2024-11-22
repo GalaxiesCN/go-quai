@@ -152,8 +152,6 @@ const (
 	NewConversionLockPeriod       uint64 = 7200
 	MinQiConversionDenomination          = 10
 	ConversionConfirmationContext        = common.PRIME_CTX // A conversion requires a single coincident Dom confirmation
-	SoftMaxUTXOSetSize                   = math.MaxInt      // The soft maximum number of UTXOs that can be stored in the UTXO set
-	MinimumTrimDepth                     = math.MaxInt      // The minimum block depth of the chain to begin trimming
 	QiToQuaiConversionGas                = 100000           // The gas used to convert Qi to Quai
 	DefaultCoinbaseLockup                = 0                // The default lockup byte for coinbase rewards
 )
@@ -177,7 +175,8 @@ var (
 	DifficultyAdjustmentFactor int64  = 40                                                          // This is the factor that divides the log of the change in the difficulty
 	MinQuaiConversionAmount           = new(big.Int).Mul(big.NewInt(10000000000), big.NewInt(GWei)) // 0.000000001 Quai
 	MaxWorkShareCount                 = 16
-	WorkSharesThresholdDiff           = 3 // Number of bits lower than the target that the default consensus engine uses
+	OldWorkSharesThresholdDiff        = 3 // Number of bits lower than the target that the default consensus engine uses
+	NewWorkSharesThresholdDiff        = 4 // Number of bits lower than the target that the default consensus engine uses
 	WorkSharesInclusionDepth          = 3 // Number of blocks upto which the work shares can be referenced and this is protocol enforced
 	LockupByteToBlockDepth            = make(map[uint8]uint64)
 	LockupByteToRewardsRatio          = make(map[uint8]*big.Int)
@@ -196,8 +195,10 @@ var (
 )
 
 const (
-	GoldenAgeForkNumberV1    = 180000
-	GoldenAgeForkGraceNumber = 4000
+	GoldenAgeForkNumberV1       = 180000
+	GoldenAgeForkNumberV2       = 588000
+	GoldenAgeForkGraceNumber    = 100
+	GoldenAgeGracePaymentPeriod = 6000
 )
 
 func init() {
@@ -230,8 +231,10 @@ func RegionEntropyTarget(expansionNum uint8) *big.Int {
 func MinGasLimit(number uint64) uint64 {
 	if number < GoldenAgeForkNumberV1 {
 		return 5000000
-	} else {
+	} else if number < GoldenAgeForkNumberV2 {
 		return 10000000
+	} else {
+		return 12000000
 	}
 }
 
