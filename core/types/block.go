@@ -35,6 +35,10 @@ import (
 	"github.com/dominant-strategies/go-quai/rlp"
 )
 
+const (
+	NonceLength = 8
+)
+
 var (
 	EmptyRootHash  = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 	EmptyUncleHash = RlpHash([]*Header(nil))
@@ -48,7 +52,7 @@ var (
 // A BlockNonce is a 64-bit hash which proves (combined with the
 // mix-hash) that a sufficient amount of computation has been carried
 // out on a block.
-type BlockNonce [8]byte
+type BlockNonce [NonceLength]byte
 
 // EncodeNonce converts the given integer to a block nonce.
 func EncodeNonce(i uint64) BlockNonce {
@@ -1230,10 +1234,12 @@ func (m BlockManifest) ProtoEncode() (*ProtoManifest, error) {
 
 // ProtoDecode deserializes th ProtoManifest into the BlockManifest format
 func (m *BlockManifest) ProtoDecode(protoManifest *ProtoManifest) error {
-	for _, protoHash := range protoManifest.Manifest {
-		hash := &common.Hash{}
-		hash.ProtoDecode(protoHash)
-		*m = append(*m, *hash)
+	if protoManifest != nil {
+		for _, protoHash := range protoManifest.Manifest {
+			hash := &common.Hash{}
+			hash.ProtoDecode(protoHash)
+			*m = append(*m, *hash)
+		}
 	}
 	return nil
 }

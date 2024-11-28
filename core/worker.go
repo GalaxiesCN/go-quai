@@ -1253,12 +1253,12 @@ var qiTxErrs uint64
 
 func (w *worker) commitTransactions(env *environment, primeTerminus *types.WorkObject, parent *types.WorkObject, txs *types.TransactionsByPriceAndNonce, excludeEtx bool) error {
 	qiTxsToRemove := make([]*common.Hash, 0)
-	gasLimit := env.wo.GasLimit
+	gasLimit := env.wo.GasLimit()
 	if env.gasPool == nil {
-		env.gasPool = new(types.GasPool).AddGas(gasLimit())
+		env.gasPool = new(types.GasPool).AddGas(gasLimit)
 	}
 	var coalescedLogs []*types.Log
-	minEtxGas := gasLimit() / params.MinimumEtxGasDivisor
+	minEtxGas := gasLimit / params.MinimumEtxGasDivisor
 	etxCount := 0
 	for {
 		if excludeEtx {
@@ -1319,15 +1319,15 @@ func (w *worker) commitTransactions(env *environment, primeTerminus *types.WorkO
 		}
 		if tx.Type() == types.QiTxType {
 			txGas := types.CalculateBlockQiTxGas(tx, env.qiGasScalingFactor, w.hc.NodeLocation())
-			if env.gasPool.Gas() < txGas {
-				w.logger.WithFields(log.Fields{
-					"have": env.gasPool,
-					"want": txGas,
-				}).Trace("Not enough gas for further transactions")
-				break
+			if txGas > gasLimit {
+				// This QiTx uses too much gas to include in the block
+				txs.PopNoSort()
+				hash := tx.Hash()
+				qiTxsToRemove = append(qiTxsToRemove, &hash)
+				continue
 			}
 			if err := w.processQiTx(tx, env, primeTerminus, parent, firstQiTx); err != nil {
-				if strings.Contains(err.Error(), "emits too many") || strings.Contains(err.Error(), "double spends") || strings.Contains(err.Error(), "combine smaller denominations") {
+				if strings.Contains(err.Error(), "emits too many") || strings.Contains(err.Error(), "double spends") || strings.Contains(err.Error(), "combine smaller denominations") || strings.Contains(err.Error(), "uses too much gas") {
 					// This is not an invalid tx, our block is just full of ETXs
 					// Alternatively, a tx double spends a cached deleted UTXO, likely replaced-by-fee
 					txs.PopNoSort()
@@ -2032,9 +2032,6 @@ func (w *worker) processQiTx(tx *types.Transaction, env *environment, primeTermi
 	if err := env.gasPool.SubGas(intrinsicGas); err != nil {
 		return err
 	}
-	if gasUsed > env.wo.GasLimit() {
-		return fmt.Errorf("tx %032x uses too much gas, have used %d out of %d", tx.Hash(), gasUsed, env.wo.GasLimit())
-	}
 
 	addresses := make(map[common.AddressBytes]struct{})
 	totalQitIn := big.NewInt(0)
@@ -2229,6 +2226,9 @@ func (w *worker) processQiTx(tx *types.Transaction, env *environment, primeTermi
 		if env.wo.NumberU64(common.ZONE_CTX) < params.GoldenAgeForkNumberV2 {
 			txFeeInQit.Sub(txFeeInQit, txFeeInQit) // Fee goes entirely to gas to pay for conversion
 		}
+	}
+	if gasUsed > env.wo.GasLimit() {
+		return fmt.Errorf("tx %032x uses too much gas, have used %d out of %d", tx.Hash(), gasUsed, env.wo.GasLimit())
 	}
 	env.wo.Header().SetGasUsed(gasUsed)
 	env.etxRLimit -= ETXRCount
