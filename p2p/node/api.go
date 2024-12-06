@@ -369,6 +369,7 @@ func (p *P2PNode) GetBlockByNumber(number *big.Int, location common.Location) *t
 	return p.consensus.LookupBlockByNumber(number, location)
 }
 
+// todo 快来看p2p中的处理方案
 func (p *P2PNode) handleBroadcast(sourcePeer peer.ID, Id string, topic string, data interface{}, nodeLocation common.Location) {
 	if _, ok := acceptableTypes[reflect.TypeOf(data)]; !ok {
 		log.Global.WithFields(log.Fields{

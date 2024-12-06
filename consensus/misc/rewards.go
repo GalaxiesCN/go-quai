@@ -12,6 +12,7 @@ import (
 
 func CalculateReward(parent *types.WorkObject, header *types.WorkObjectHeader) *big.Int {
 	var reward *big.Int
+	// 同一个逻辑设置quai和qi
 	if header.PrimaryCoinbase().IsInQiLedgerScope() {
 		reward = new(big.Int).Set(CalculateQiReward(parent.WorkObjectHeader()))
 	} else {
@@ -20,7 +21,7 @@ func CalculateReward(parent *types.WorkObject, header *types.WorkObjectHeader) *
 
 	// ~30% extra reward for grace number of blocks after the fork to encourage nodes to move to the fork
 	if header.NumberU64() >= params.GoldenAgeForkNumberV2 && header.NumberU64() < params.GoldenAgeForkNumberV2+params.GoldenAgeGracePaymentPeriod {
-		reward = new(big.Int).Add(reward, new(big.Int).Div(reward, big.NewInt(70)))
+		reward = new(big.Int).Add(reward, new(big.Int).Div(reward, big.NewInt(70))) // fixme 这里应该有bug
 	}
 
 	// Since after the second fork, the number of the workshares allowed is increased by 2x,
@@ -92,6 +93,7 @@ func CalculateKQuai(parent *types.WorkObject, beta0 *big.Int, beta1 *big.Int) *b
 	return final
 }
 
+// 这个奖励和parent的难度及exchangeRate有关
 func CalculateQuaiReward(header *types.WorkObject) *big.Int {
 	numerator := new(big.Int).Mul(header.ExchangeRate(), LogBig(header.Difficulty()))
 	reward := new(big.Int).Quo(numerator, common.Big2e64)

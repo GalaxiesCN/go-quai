@@ -295,6 +295,7 @@ func (blake3pow *Blake3pow) CalcRank(chain consensus.ChainHeaderReader, header *
 	return 0, nil
 }
 
+// 都是使用workShare的模式
 func (blake3pow *Blake3pow) CheckIfValidWorkShare(workShare *types.WorkObjectHeader) types.WorkShareValidity {
 	var thresholdDiff int
 	if workShare.NumberU64() < params.GoldenAgeForkNumberV2 {
@@ -311,6 +312,7 @@ func (blake3pow *Blake3pow) CheckIfValidWorkShare(workShare *types.WorkObjectHea
 	}
 }
 
+// 检查生成的区块是否符合要求
 func (blake3pow *Blake3pow) CheckWorkThreshold(workShare *types.WorkObjectHeader, workShareThresholdDiff int) bool {
 	workShareMinTarget, err := consensus.CalcWorkShareThreshold(workShare, workShareThresholdDiff)
 	if err != nil {

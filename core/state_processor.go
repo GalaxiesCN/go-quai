@@ -336,6 +336,7 @@ func (p *StateProcessor) Process(block *types.WorkObject, batch ethdb.Batch) (ty
 	}
 
 	// Redeem all Quai for the different lock up periods
+	// 📢 解锁啦
 	err, unlocks := RedeemLockedQuai(p.hc, header, parent, statedb)
 	if err != nil {
 		return nil, nil, nil, nil, 0, 0, 0, nil, nil, fmt.Errorf("error redeeming locked quai: %w", err)
@@ -440,6 +441,7 @@ func (p *StateProcessor) Process(block *types.WorkObject, batch ethdb.Batch) (ty
 			// 2) do not consume any gas
 			// 3) do not produce any receipts/logs
 			// 4) etx emit threshold numbers
+			// TODO 看这里
 			if types.IsCoinBaseTx(tx) {
 				if tx.To() == nil {
 					return nil, nil, nil, nil, 0, 0, 0, nil, nil, fmt.Errorf("coinbase tx %x has no recipient", tx.Hash())
@@ -470,7 +472,7 @@ func (p *StateProcessor) Process(block *types.WorkObject, batch ethdb.Batch) (ty
 						}
 					}
 					lockup.Add(lockup, blockNumber)
-					value := params.CalculateCoinbaseValueWithLockup(tx.Value(), lockupByte)
+					value := params.CalculateCoinbaseValueWithLockup(tx.Value(), lockupByte) // 由于锁定会有额外的收益
 					denominations := misc.FindMinDenominations(value)
 					outputIndex := uint16(0)
 					// Iterate over the denominations in descending order
@@ -691,17 +693,20 @@ func (p *StateProcessor) Process(block *types.WorkObject, batch ethdb.Batch) (ty
 		return nil, nil, nil, nil, 0, 0, 0, nil, nil, err
 	}
 
-	primaryCoinbase := block.PrimaryCoinbase()
+	primaryCoinbase := block.PrimaryCoinbase() // 出块的那个人同时可能会有两种收益，只要有qi交易？？？
 	secondaryCoinbase := block.SecondaryCoinbase()
 
 	// If the primary coinbase belongs to a ledger and there is no fees
 	// for other ledger, there is no etxs emitted for the other ledger
 	if bytes.Equal(block.PrimaryCoinbase().Bytes(), quaiCoinbase.Bytes()) {
+		// 这里是计算挖矿奖励和交易费用的和，奖励与parent和block有关
 		coinbaseReward := misc.CalculateReward(parent, block.WorkObjectHeader())
 		blockReward := new(big.Int).Add(coinbaseReward, quaiFees)
 
+		// 把block出块变成外部交易
 		coinbaseEtx := types.NewTx(&types.ExternalTx{To: &primaryCoinbase, Gas: params.TxGas, Value: blockReward, EtxType: types.CoinbaseType, OriginatingTxHash: common.SetBlockHashForQuai(parentHash, nodeLocation), ETXIndex: uint16(len(emittedEtxs)), Sender: primaryCoinbase, Data: []byte{block.Lock()}})
 		emittedEtxs = append(emittedEtxs, coinbaseEtx)
+		// 有了qiFee，所以同时获得两种收益
 		if qiFees.Cmp(big.NewInt(0)) != 0 {
 			coinbaseEtx := types.NewTx(&types.ExternalTx{To: &secondaryCoinbase, Gas: params.TxGas, Value: qiFees, EtxType: types.CoinbaseType, OriginatingTxHash: common.SetBlockHashForQi(parentHash, nodeLocation), ETXIndex: uint16(len(emittedEtxs)), Sender: secondaryCoinbase, Data: []byte{block.Lock()}})
 			emittedEtxs = append(emittedEtxs, coinbaseEtx)
@@ -718,14 +723,16 @@ func (p *StateProcessor) Process(block *types.WorkObject, batch ethdb.Batch) (ty
 	}
 	// Add an etx for each workshare for it to be rewarded
 	for _, uncle := range block.Uncles() {
+		// 叔块 奖励奖励！！
 		reward := misc.CalculateReward(parent, uncle)
-		uncleCoinbase := uncle.PrimaryCoinbase()
+		uncleCoinbase := uncle.PrimaryCoinbase() // 所以发送workshare时候也要设置PrimaryCoinbase
 		var originHash common.Hash
 		if uncleCoinbase.IsInQuaiLedgerScope() {
 			originHash = common.SetBlockHashForQuai(parentHash, nodeLocation)
 		} else {
 			originHash = common.SetBlockHashForQi(parentHash, nodeLocation)
 		}
+		// 厉害，在这里等着呢
 		emittedEtxs = append(emittedEtxs, types.NewTx(&types.ExternalTx{To: &uncleCoinbase, Gas: params.TxGas, Value: reward, EtxType: types.CoinbaseType, OriginatingTxHash: originHash, ETXIndex: uint16(len(emittedEtxs)), Sender: uncleCoinbase, Data: []byte{uncle.Lock()}}))
 	}
 
@@ -882,11 +889,12 @@ func RedeemLockedQuai(hc *HeaderChain, header *types.WorkObject, parent *types.W
 		targetBlockHeight := currentBlockHeight - blockDepth
 
 		// Fetch the block at the calculated target height
-		targetBlock := hc.GetBlockByNumber(targetBlockHeight)
+		targetBlock := hc.GetBlockByNumber(targetBlockHeight) // 拿出刚开始被计算的那个区块？
 		if targetBlock == nil {
 			return fmt.Errorf("block at height %d not found", targetBlockHeight), nil
 		}
 
+		// 拿出对应的targetblock来计算
 		for _, etx := range targetBlock.Body().ExternalTransactions() {
 			// Check if the transaction is a conversion transaction
 			if types.IsCoinBaseTx(etx) && etx.ETXSender().IsInQuaiLedgerScope() {
@@ -905,12 +913,14 @@ func RedeemLockedQuai(hc *HeaderChain, header *types.WorkObject, parent *types.W
 						lockup = params.NewConversionLockPeriod
 					}
 				} else {
+					// 这部分看起来是能够自己定义锁定期限的
 					lockup = params.LockupByteToBlockDepth[lockupByte]
 				}
 				if lockup == blockDepth {
 					balance := params.CalculateCoinbaseValueWithLockup(etx.Value(), lockupByte)
 
 					if !statedb.Exist(internal) {
+						// 创建一个这个账户需要gas，这个费用还不是固定的，与前一个quai状态state大小有关
 						newAccountCreationGas := params.CallNewAccountGas(parent.QuaiStateSize())
 						newAccountCreationFee := new(big.Int).Mul(new(big.Int).SetUint64(newAccountCreationGas), big.NewInt(params.InitialBaseFee))
 						// Check if balance is greater than or equal to newAccountCreationFee
@@ -923,7 +933,7 @@ func RedeemLockedQuai(hc *HeaderChain, header *types.WorkObject, parent *types.W
 						}
 					}
 					hc.logger.Debugf("Redeeming %s locked Quai for %s at block depth %d", balance.String(), internal.Hex(), blockDepth)
-					statedb.AddBalance(internal, balance)
+					statedb.AddBalance(internal, balance) // 【AddBalance 增加余额的统一接口】解锁期到了，直接通过state增加余额
 					unlocks = append(unlocks, common.Unlock{
 						Addr: internal,
 						Amt:  balance,

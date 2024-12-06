@@ -654,7 +654,7 @@ func RPCMarshalBlock(backend Backend, block *types.WorkObject, inclTx bool, full
 	marshalWorkShares := make([]map[string]interface{}, 0)
 	for _, uncle := range block.Uncles() {
 		rpcMarshalUncle := uncle.RPCMarshalWorkObjectHeader()
-		_, err := backend.Engine().VerifySeal(uncle)
+		_, err := backend.Engine().VerifySeal(uncle) // todo 看看workshare是不是都成了叔块，那么block能比workshare多多少奖励呢？
 		if err != nil {
 			marshalWorkShares = append(marshalWorkShares, rpcMarshalUncle)
 		} else {
@@ -775,6 +775,7 @@ func (s *PublicBlockChainQuaiAPI) ReceiveMinedHeader(ctx context.Context, raw he
 
 	// Broadcast the block and announce chain insertion event
 	if block.Header() != nil {
+		// 区块广播出去
 		err := s.b.BroadcastBlock(block, s.b.NodeLocation())
 		if err != nil {
 			s.b.Logger().WithField("err", err).Error("Error broadcasting block")
@@ -814,6 +815,7 @@ func (s *PublicBlockChainQuaiAPI) ReceiveRawWorkShare(ctx context.Context, raw h
 	return s.ReceiveWorkShare(ctx, workShare)
 }
 
+// todo 继续看这里
 func (s *PublicBlockChainQuaiAPI) ReceiveWorkShare(ctx context.Context, workShare *types.WorkObjectHeader) error {
 	if workShare != nil {
 		// check if the workshare is valid before broadcasting as a sanity
@@ -837,10 +839,12 @@ func (s *PublicBlockChainQuaiAPI) ReceiveWorkShare(ctx context.Context, workShar
 		}
 		wo := types.NewWorkObject(workShare, pendingBlockBody.Body(), nil)
 		shareView := wo.ConvertToWorkObjectShareView(txs)
+		// 广播出去了
 		err = s.b.BroadcastWorkShare(shareView, s.b.NodeLocation())
 		if err != nil {
 			s.b.Logger().WithField("err", err).Error("Error broadcasting work share")
 		}
+		// 计数器也相应的增加了
 		txEgressCounter.Add(float64(len(shareView.WorkObject.Transactions())))
 		s.b.Logger().WithFields(log.Fields{"tx count": len(txs)}).Info("Broadcasted workshares with txs")
 	}

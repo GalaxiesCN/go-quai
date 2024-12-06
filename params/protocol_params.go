@@ -148,6 +148,7 @@ const (
 	// infrastructure, if needed, to account for the upcoming network change.
 	TREE_EXPANSION_WAIT_COUNT = 1024
 
+	// 与锁定有关的时间周期
 	OldConversionLockPeriod       uint64 = 10 // The number of zone blocks that a conversion output is locked for
 	NewConversionLockPeriod       uint64 = 7200
 	MinQiConversionDenomination          = 10
@@ -178,9 +179,10 @@ var (
 	OldWorkSharesThresholdDiff        = 3 // Number of bits lower than the target that the default consensus engine uses
 	NewWorkSharesThresholdDiff        = 4 // Number of bits lower than the target that the default consensus engine uses
 	WorkSharesInclusionDepth          = 3 // Number of blocks upto which the work shares can be referenced and this is protocol enforced
-	LockupByteToBlockDepth            = make(map[uint8]uint64)
-	LockupByteToRewardsRatio          = make(map[uint8]*big.Int)
-	ExchangeRate                      = big.NewInt(86196385918997143) // This is the initial exchange rate in Qi per Quai in Its/Qit // Garden = big.NewInt(166666666666666667)
+	// 根据不同的参数0-3来选择锁定的深度和奖励的比例
+	LockupByteToBlockDepth   = make(map[uint8]uint64)
+	LockupByteToRewardsRatio = make(map[uint8]*big.Int)
+	ExchangeRate             = big.NewInt(86196385918997143) // This is the initial exchange rate in Qi per Quai in Its/Qit // Garden = big.NewInt(166666666666666667)
 	// These numbers should be "equivalent" to the initial conversion rate
 	QuaiToQiConversionBase          = big.NewInt(10000000) // UNUSED Is the starting "historical conversion" in Qits for 10,000 Quai we need 10,000*1e3
 	QiToQuaiConversionBase          = big.NewInt(10000000) // UNUSED Is the starting "historical conversion" in Qits for 10,000 Qi we need 10,000*1e3
@@ -293,6 +295,7 @@ func CalculateCoinbaseValueWithLockup(value *big.Int, lockupByte uint8) *big.Int
 	if lockupByte == 0 {
 		return value
 	}
+	//todo 注意这里的收益可能有问题
 	return new(big.Int).Add(value, new(big.Int).Div(value, LockupByteToRewardsRatio[lockupByte]))
 }
 

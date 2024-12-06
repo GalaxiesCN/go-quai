@@ -214,6 +214,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			return nil, gas, stateGas, nil
 		}
 		newAccountCreationGas := params.CallNewAccountGas(evm.Context.QuaiStateSize)
+		// 在调用的时候你和以太坊一样，有个激活新地址的费用，由发送方支付。这个费用比单笔手续费要高
 		if gas > newAccountCreationGas {
 			gas = gas - newAccountCreationGas
 		} else {

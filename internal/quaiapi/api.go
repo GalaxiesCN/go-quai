@@ -1280,6 +1280,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 	}
 }
 
+// 交易池接口，用来拿到所有交易有关的东西
 // PublicTransactionPoolAPI exposes methods for the RPC interface
 type PublicTransactionPoolAPI struct {
 	b         Backend
@@ -1715,6 +1716,7 @@ func NewPublicWorkSharesAPI(txpoolAPi *PublicTransactionPoolAPI, b Backend) *Pub
 	}
 	if b.TxMiningEnabled() {
 		// Start WorkShare workers
+		// 好啦，开始挖矿了
 		worker := StartTxWorker(b.Engine(), b.GetMinerEndpoints(), b.NodeLocation(), api, b.GetWorkShareThreshold())
 		api.txWorker = worker
 	}
@@ -1744,8 +1746,9 @@ func (s *PublicWorkSharesAPI) GetWorkShareThreshold(ctx context.Context) (int, e
 	return s.b.GetWorkShareThreshold(), nil
 }
 
-// SendWorkedTransaction will check that the transaction in the form of a worked WorkObject
+// SendUnworkedTransaction SendWorkedTransaction will check that the transaction in the form of a worked WorkObject
 // fufills the work threshold before adding it to the transaction pool.
+// 这里实际上不是transaction，而是object
 func (s *PublicWorkSharesAPI) SendUnworkedTransaction(ctx context.Context, input hexutil.Bytes) (common.Hash, error) {
 	tx := new(types.Transaction)
 	protoTransaction := new(types.ProtoTransaction)
@@ -1754,10 +1757,11 @@ func (s *PublicWorkSharesAPI) SendUnworkedTransaction(ctx context.Context, input
 		return common.Hash{}, err
 	}
 	err = tx.ProtoDecode(protoTransaction, s.b.NodeLocation())
+	// 从proto到tx反序列化
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return tx.Hash(), s.txWorker.AddTransaction(tx)
+	return tx.Hash(), s.txWorker.AddTransaction(tx) // 把所有不知道的交易，通过txworker来处理
 }
 
 func (s *PublicWorkSharesAPI) ReceiveSubWorkshare(ctx context.Context, input hexutil.Bytes) error {

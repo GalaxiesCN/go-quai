@@ -118,6 +118,7 @@ func (bn BlockNumber) Int64() int64 {
 	return (int64)(bn)
 }
 
+// post请求传上来是哪个都可以
 type BlockNumberOrHash struct {
 	BlockNumber      *BlockNumber `json:"blockNumber,omitempty"`
 	BlockHash        *common.Hash `json:"blockHash,omitempty"`

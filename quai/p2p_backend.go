@@ -100,6 +100,7 @@ func (qbe *QuaiBackend) GetBackend(location common.Location) *quaiapi.Backend {
 }
 
 // Handle consensus data propagated to us from our peers
+// 接收到了broadcast
 func (qbe *QuaiBackend) OnNewBroadcast(sourcePeer p2p.PeerID, Id string, topic string, data interface{}, nodeLocation common.Location) bool {
 	defer types.ObjectPool.Put(data)
 	qbe.p2pBackend.AdjustPeerQuality(sourcePeer, topic, p2p.QualityAdjOnBroadcast)
@@ -130,6 +131,7 @@ func (qbe *QuaiBackend) OnNewBroadcast(sourcePeer p2p.PeerID, Id string, topic s
 		}
 
 		headerIngressCounter.Inc()
+	// 收到了workshare
 	case types.WorkObjectShareView:
 		backend := *qbe.GetBackend(nodeLocation)
 		if backend == nil {
@@ -141,7 +143,7 @@ func (qbe *QuaiBackend) OnNewBroadcast(sourcePeer p2p.PeerID, Id string, topic s
 			backend.Logger().WithFields(log.Fields{"tx count": len(data.WorkObject.Transactions()), "message id": Id}).Info("Received a work share broadcast")
 			// Unpack the workobjectheader and the transactions
 			backend.SendWorkShare(data.WorkObject.WorkObjectHeader())
-			backend.SendRemoteTxs(data.WorkObject.Transactions())
+			backend.SendRemoteTxs(data.WorkObject.Transactions()) // 这些交易好像是从pendingbody中拿到的，放到一个缓存remoteTxQueue中去
 
 			workShareIngressCounter.Inc()
 			sliceName := data.Location().Name()

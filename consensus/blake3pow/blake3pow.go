@@ -54,9 +54,10 @@ type Blake3pow struct {
 	config Config
 
 	// Mining related fields
-	rand    *rand.Rand    // Properly seeded random source for nonces
-	threads int           // Number of threads to mine on if mining
-	update  chan struct{} // Notification channel to update mining parameters
+	rand    *rand.Rand // Properly seeded random source for nonces
+	threads int        // Number of threads to mine on if mining
+	// 只是用来接收挖矿参数的
+	update chan struct{} // Notification channel to update mining parameters
 
 	// The fields below are hooks for testing
 	shared    *Blake3pow    // Shared PoW verifier to avoid cache regeneration

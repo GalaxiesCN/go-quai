@@ -587,6 +587,7 @@ func (hc *HierarchicalCoordinator) writeCurrentExpansionNumber(number uint8) err
 
 ///////// QUAI Mining Pick Logic
 
+// 👁看
 func (hc *HierarchicalCoordinator) ChainEventLoop(chainEvent chan core.ChainEvent, sub event.Subscription) {
 	defer func() {
 		if r := recover(); r != nil {

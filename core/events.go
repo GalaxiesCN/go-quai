@@ -24,6 +24,7 @@ type ChainEvent struct {
 	Entropy *big.Int
 }
 
+// 发送解锁事件
 type UnlocksEvent struct {
 	Hash    common.Hash
 	Unlocks []common.Unlock

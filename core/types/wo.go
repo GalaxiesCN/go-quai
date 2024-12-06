@@ -21,8 +21,9 @@ var ObjectPool = sync.Pool{
 	},
 }
 
+// 共识和业务逻辑分开独立演进
 type WorkObject struct {
-	woHeader *WorkObjectHeader
+	woHeader *WorkObjectHeader // 专注于共识和挖矿
 	woBody   *WorkObjectBody
 	tx       *Transaction
 
@@ -59,6 +60,7 @@ type WorkObjects []*WorkObject
 type WorkObjectView int
 
 // Work object types
+// Todo 快来看看这里，这么多个种类
 const (
 	BlockObject WorkObjectView = iota
 	BlockObjects
@@ -654,7 +656,7 @@ func (wh *WorkObjectHeader) SetTime(val uint64) {
 }
 
 type WorkObjectBody struct {
-	header          *Header
+	header          *Header // 处理业务逻辑和状态
 	transactions    Transactions
 	outboundEtxs    Transactions
 	uncles          []*WorkObjectHeader
@@ -1284,6 +1286,7 @@ func (wb *WorkObjectBody) ProtoEncode(woType WorkObjectView) (*ProtoWorkObjectBo
 	}
 }
 
+// todo 根据wotype作为切入掉
 func (wb *WorkObjectBody) ProtoDecode(data *ProtoWorkObjectBody, location common.Location, woType WorkObjectView) error {
 	var err error
 	switch woType {

@@ -173,6 +173,7 @@ type mixHashWorkHash struct {
 	workHash []byte
 }
 
+// 哈哈哈哈哈哈哈哈哈哈哈哈哈哈哈哈 怎么都是用blake3
 // Progpow is a proof-of-work consensus engine using the blake3 hash algorithm
 type Progpow struct {
 	config Config
@@ -482,6 +483,7 @@ func (progpow *Progpow) SetThreads(threads int) {
 	} else {
 		// Update the threads and ping any running seal to pull in any changes
 		progpow.threads = threads
+		// 当非共享的时候，调用这个函数会导致重新计算
 		select {
 		case progpow.update <- struct{}{}:
 		default:

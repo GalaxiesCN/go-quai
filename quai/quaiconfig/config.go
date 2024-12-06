@@ -206,6 +206,7 @@ func CreateBlake3ConsensusEngine(stack *node.Node, nodeLocation common.Location,
 		MinDifficulty:      config.MinDifficulty,
 		WorkShareThreshold: workShareThreshold,
 	}, notify, noverify, logger)
+	// 现在还不创建线程
 	engine.SetThreads(-1) // Disable CPU mining
 	return engine
 }

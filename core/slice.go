@@ -68,7 +68,7 @@ type Slice struct {
 	hc *HeaderChain
 
 	txPool        *TxPool
-	miner         *Miner
+	miner         *Miner // todo 注意看，这里有个miner
 	expansionFeed event.Feed
 
 	sliceDb ethdb.Database
@@ -1086,6 +1086,7 @@ func (sl *Slice) MakeFullPendingHeader(primePendingHeader, regionPendingHeader, 
 	return combinedPendingHeader
 }
 
+// 看看这里，与持久化也有关
 func (sl *Slice) GeneratePendingHeader(block *types.WorkObject, fill bool) (*types.WorkObject, error) {
 	sl.hc.headermu.Lock()
 

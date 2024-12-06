@@ -109,7 +109,7 @@ func (progpow *Progpow) Seal(header *types.WorkObject, results chan<- *types.Wor
 			close(abort)
 		case <-progpow.update:
 			// Thread count was changed on user request, restart
-			close(abort)
+			close(abort) // 通知原来的结束，开始挖新的参数
 			if err := progpow.Seal(header, results, stop); err != nil {
 				progpow.logger.WithField("err", err).Error("Failed to restart sealing after update")
 			}
@@ -128,6 +128,7 @@ func (progpow *Progpow) Mine(workObject *types.WorkObject, abort <-chan struct{}
 	}
 }
 
+// 所有的只用到了header进行挖矿
 func (progpow *Progpow) MineToThreshold(workObject *types.WorkObject, workShareThreshold int, abort <-chan struct{}, found chan *types.WorkObject) {
 	if workShareThreshold <= 0 {
 		log.Global.WithField("WorkshareThreshold", workShareThreshold).Error("WorkshareThreshold must be positive")
@@ -151,6 +152,7 @@ func (progpow *Progpow) MineToThreshold(workObject *types.WorkObject, workShareT
 search:
 	for {
 		select {
+		// 如有退出信号，立马退出重复计算
 		case <-abort:
 			// Mining terminated, update stats and abort
 			break search

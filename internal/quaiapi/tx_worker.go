@@ -136,10 +136,12 @@ func (worker *TxWorker) processTxs(ctx context.Context, resultCh chan *types.Wor
 			if !ok {
 				log.Global.Error("Tx miner channel was somehow closed")
 			}
+			// 这里不是开始挖矿了嘛
 			worker.engine.MineToThreshold(tx, worker.threshold, ctx.Done(), resultCh)
 		case <-ctx.Done():
 			return
 		case workedTx := <-resultCh:
+			// 在这里提交计算出来交易
 			worker.clients[0].SubmitSubWorkshare(ctx, workedTx)
 		}
 	}

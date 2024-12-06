@@ -66,6 +66,7 @@ func (blake3pow *Blake3pow) Seal(header *types.WorkObject, results chan<- *types
 		pend   sync.WaitGroup
 		locals = make(chan *types.WorkObject)
 	)
+	// 开启多线程啦
 	for i := 0; i < threads; i++ {
 		pend.Add(1)
 		go func() {
@@ -78,6 +79,8 @@ func (blake3pow *Blake3pow) Seal(header *types.WorkObject, results chan<- *types
 				}
 			}()
 			defer pend.Done()
+			// 这里通过管道共享，然后把挖矿结果传出来
+			// 通过abort来控制挖矿程序开关
 			blake3pow.Mine(header, abort, locals)
 		}()
 	}
@@ -153,6 +156,7 @@ func (blake3pow *Blake3pow) MineToThreshold(workObject *types.WorkObject, workSh
 search:
 	for {
 		select {
+		// 每一次计算完nonce后，就判断是否要退出
 		case <-abort:
 			// Mining terminated, update stats and abort
 			blake3pow.logger.WithField("attempts", nonce-seed).Trace("Blake3pow nonce search aborted")

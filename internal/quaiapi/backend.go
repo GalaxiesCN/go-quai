@@ -214,6 +214,7 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 			Service:   NewPublicTxPoolAPI(apiBackend),
 			Public:    true,
 		})
+		// 注意：这里就是node进行workshare的地方
 		apis = append(apis, rpc.API{
 			Namespace: "workshare",
 			Version:   "1.0",

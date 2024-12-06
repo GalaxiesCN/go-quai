@@ -1117,6 +1117,7 @@ func setTxPool(cfg *core.TxPoolConfig, nodeLocation common.Location) {
 	cfg.SharingClientsEndpoints = SplitAndTrim(viper.GetString(TxPoolSharingClientsFlag.Name))
 }
 
+// 不同阶段的不同参数
 func setConsensusEngineConfig(cfg *quaiconfig.Config) {
 	if cfg.ConsensusEngine == "blake3" {
 		// Override any default configs for hard coded networks.

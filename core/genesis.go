@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-
 	"math/big"
 	"os"
 
@@ -376,6 +375,7 @@ func DefaultColosseumGenesisBlock(consensusEngine string, genesisNonce uint64) *
 }
 
 // DefaultGardenGenesisBlock returns the Garden testnet genesis block.
+// 不同算法下的Genesis不一样
 func DefaultGardenGenesisBlock(consensusEngine string, genesisNonce uint64) *Genesis {
 	if consensusEngine == "blake3" {
 		return &Genesis{

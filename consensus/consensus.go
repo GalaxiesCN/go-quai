@@ -24,8 +24,8 @@ import (
 	"github.com/dominant-strategies/go-quai/common"
 	"github.com/dominant-strategies/go-quai/core/state"
 	"github.com/dominant-strategies/go-quai/core/types"
-	"github.com/dominant-strategies/go-quai/ethdb"
 	"github.com/dominant-strategies/go-quai/crypto/multiset"
+	"github.com/dominant-strategies/go-quai/ethdb"
 	"github.com/dominant-strategies/go-quai/params"
 )
 
@@ -196,6 +196,7 @@ type Engine interface {
 	//
 	// Note: The block header and state database might be updated to reflect any
 	// consensus rules that happen at finalization (e.g. block rewards).
+	// todo 要组装区块了吧
 	FinalizeAndAssemble(chain ChainHeaderReader, woHeader *types.WorkObject, state *state.StateDB, txs []*types.Transaction, uncles []*types.WorkObjectHeader, etxs []*types.Transaction, subManifest types.BlockManifest, receipts []*types.Receipt, parentUtxoSetSize uint64, utxosCreate, utxosDelete []common.Hash) (*types.WorkObject, error)
 
 	// Seal generates a new sealing request for the given input block and pushes
@@ -243,6 +244,7 @@ type BlockReader interface {
 	AddToCalcOrderCache(common.Hash, int, *big.Int)
 }
 
+// fixme NB
 func TargetToDifficulty(target *big.Int) *big.Int {
 	return new(big.Int).Div(common.Big2e256, target)
 }
@@ -258,10 +260,10 @@ func CalcWorkShareThreshold(workShare *types.WorkObjectHeader, workShareThreshol
 		// If workShareThresholdDiff = 0, you should use the difficulty directly from the header.
 		return nil, ErrInvalidThresholdDiff
 	}
-	diff := workShare.Difficulty()
+	diff := workShare.Difficulty() //难度越大，要求的前导0就越多
 	diffTarget := new(big.Int).Div(Big2e256, diff)
 	workShareTarget := new(big.Int).Exp(Big2, big.NewInt(int64(workShareThresholdDiff)), nil)
-
+	// 有了所谓的workShareThresholdDiff，就能更简单出块
 	return workShareTarget.Mul(diffTarget, workShareTarget), nil
 }
 

@@ -283,11 +283,13 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, db ethdb.Databas
 	return worker
 }
 
+// 这里选择coinbase
 func (w *worker) pickCoinbases() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	// Use the MinerPreference to bias the decision
+	// 我们只挖quai的话，没有secondaryCoinbase
 	if rand.Float64() > w.minerPreference {
 		// if MinerPreference < 0.5, bias is towards Quai
 		w.primaryCoinbase = w.quaiCoinbase
@@ -540,6 +542,7 @@ func (w *worker) asyncStateLoop() {
 }
 
 // GeneratePendingBlock generates pending block given a commited block.
+// readme todo 这里把生成一个真实的区块，可以看看work Share
 func (w *worker) GeneratePendingHeader(block *types.WorkObject, fill bool, txs types.TxByPriceAndTime, fromOrderedTransactionSet bool) (*types.WorkObject, error) {
 	nodeCtx := w.hc.NodeCtx()
 
@@ -770,7 +773,7 @@ func (w *worker) transactionOrderingLoop() {
 // OrderTransactionSet takes in the set of transactions and
 // gasUsedAfterTransaction, picks subset of the transactions or change the order
 // of transactions as to increase the revenue of the miner
-// 1) First filtering out the non etx transactions
+// 1) First filtering out the non etx transactions （找出非外部交易）
 // 2) Create a separate unique gas price list
 // 3) Iterate through the gas price list and for each iteration, add all the
 // transactions that are above the gas price and calculate the revenue, it the
@@ -1678,7 +1681,7 @@ func (w *worker) prepareWork(genParams *generateParams, wo *types.WorkObject) (*
 			for _, hash := range keys {
 				if value, exist := wos.Peek(hash); exist {
 					uncle := value
-					uncles = append(uncles, &uncle)
+					uncles = append(uncles, &uncle) // 这里都是workshare，通过p2p sendworkshare存过来的
 				}
 			}
 			// sort the uncles in the decreasing order of entropy
@@ -1903,6 +1906,7 @@ func (w *worker) ComputeManifestHash(header *types.WorkObject) common.Hash {
 	return manifestHash
 }
 
+// 组装成一个区块了
 func (w *worker) FinalizeAssemble(chain consensus.ChainHeaderReader, newWo *types.WorkObject, parent *types.WorkObject, state *state.StateDB, txs []*types.Transaction, uncles []*types.WorkObjectHeader, etxs []*types.Transaction, subManifest types.BlockManifest, receipts []*types.Receipt, parentUtxoSetSize uint64, utxosCreate, utxosDelete []common.Hash) (*types.WorkObject, error) {
 	nodeCtx := w.hc.NodeCtx()
 	wo, err := w.engine.FinalizeAndAssemble(chain, newWo, state, txs, uncles, etxs, subManifest, receipts, parentUtxoSetSize, utxosCreate, utxosDelete)

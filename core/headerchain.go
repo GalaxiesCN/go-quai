@@ -420,7 +420,7 @@ func (hc *HeaderChain) setStateProcessing() bool {
 	return false
 }
 
-// Append
+// Append HeaderChain 用的多，在这里之后就会进行持久化了
 func (hc *HeaderChain) AppendBlock(block *types.WorkObject) error {
 	blockappend := time.Now()
 	// Append block else revert header append
@@ -1287,6 +1287,7 @@ func (hc *HeaderChain) CalcMaxBaseFee(block *types.WorkObject) (*big.Int, error)
 
 // CalcMinBaseFee calculates the mininum base fee supplied by the transaction
 // to get inclusion in the next block
+// 根据父区块来计算最小基础费
 func (hc *HeaderChain) CalcMinBaseFee(block *types.WorkObject) *big.Int {
 	// If the base fee is calculated is less than the min base fee, then set
 	// this to min base fee
