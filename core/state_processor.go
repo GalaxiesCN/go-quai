@@ -456,18 +456,9 @@ func (p *StateProcessor) Process(block *types.WorkObject, batch ethdb.Batch) (ty
 						return nil, nil, nil, nil, 0, 0, 0, nil, nil, fmt.Errorf("coinbase lockup byte %d is out of range", lockupByte)
 					}
 					var lockup *big.Int
-					// The first lock up period changes after the fork
-					if lockupByte == 0 {
-						if block.NumberU64(common.ZONE_CTX) < params.GoldenAgeForkNumberV1 {
-							lockup = new(big.Int).SetUint64(params.OldConversionLockPeriod)
-						} else {
-							lockup = new(big.Int).SetUint64(params.NewConversionLockPeriod)
-						}
-					} else {
-						lockup = new(big.Int).SetUint64(params.LockupByteToBlockDepth[lockupByte])
-						if lockup.Uint64() < params.OldConversionLockPeriod {
-							return nil, nil, nil, nil, 0, 0, 0, nil, nil, fmt.Errorf("coinbase lockup period is less than the minimum lockup period of %d blocks", params.OldConversionLockPeriod)
-						}
+					lockup = new(big.Int).SetUint64(params.LockupByteToBlockDepth[lockupByte])
+					if lockup.Uint64() < params.ConversionLockPeriod {
+						return nil, nil, nil, nil, 0, 0, 0, nil, nil, fmt.Errorf("coinbase lockup period is less than the minimum lockup period of %d blocks", params.ConversionLockPeriod)
 					}
 					lockup.Add(lockup, blockNumber)
 					value := params.CalculateCoinbaseValueWithLockup(tx.Value(), lockupByte)
@@ -511,11 +502,7 @@ func (p *StateProcessor) Process(block *types.WorkObject, batch ethdb.Batch) (ty
 			if etx.To().IsInQiLedgerScope() {
 				if etx.ETXSender().Location().Equal(*etx.To().Location()) { // Quai->Qi Conversion
 					var lockup *big.Int
-					if block.NumberU64(common.ZONE_CTX) < params.GoldenAgeForkNumberV1 {
-						lockup = new(big.Int).SetUint64(params.OldConversionLockPeriod)
-					} else {
-						lockup = new(big.Int).SetUint64(params.NewConversionLockPeriod)
-					}
+					lockup = new(big.Int).SetUint64(params.ConversionLockPeriod)
 					lock := new(big.Int).Add(block.Number(nodeCtx), lockup)
 					value := etx.Value()
 					txGas := etx.Gas()
@@ -833,44 +820,18 @@ func (p *StateProcessor) Process(block *types.WorkObject, batch ethdb.Batch) (ty
 func RedeemLockedQuai(hc *HeaderChain, header *types.WorkObject, parent *types.WorkObject, statedb *state.StateDB) (error, []common.Unlock) {
 	currentBlockHeight := header.Number(hc.NodeCtx()).Uint64()
 
-	var blockDepths []uint64
-	if currentBlockHeight < params.GoldenAgeForkNumberV1 {
-		blockDepths = []uint64{
-			params.OldConversionLockPeriod,
-			params.LockupByteToBlockDepth[0],
-			params.LockupByteToBlockDepth[1],
-			params.LockupByteToBlockDepth[2],
-			params.LockupByteToBlockDepth[3],
-		}
-	} else {
-		blockDepths = []uint64{
-			params.LockupByteToBlockDepth[0],
-			params.LockupByteToBlockDepth[1],
-			params.LockupByteToBlockDepth[2],
-			params.LockupByteToBlockDepth[3],
-		}
+	blockDepths := []uint64{
+		params.LockupByteToBlockDepth[0],
+		params.LockupByteToBlockDepth[1],
+		params.LockupByteToBlockDepth[2],
+		params.LockupByteToBlockDepth[3],
 	}
 	// Array of specific block depths for which we will redeem the Quai
 
 	unlocks := []common.Unlock{}
 
 	// Loop through the predefined block depths
-	for i, blockDepth := range blockDepths {
-
-		// Minimum lock period is neutered between the fork number + old
-		// conversion period and fork number + new conversion period
-		if i == 0 {
-			if currentBlockHeight >= params.GoldenAgeForkNumberV1+params.OldConversionLockPeriod &&
-				currentBlockHeight < params.GoldenAgeForkNumberV1+params.NewConversionLockPeriod {
-				continue
-			}
-
-			if currentBlockHeight >= params.GoldenAgeForkNumberV1+params.NewConversionLockPeriod {
-				// block depth for the first index gets changed into the new conversion lock period
-				// after the fork height + new conversion number
-				blockDepth = params.NewConversionLockPeriod
-			}
-		}
+	for _, blockDepth := range blockDepths {
 
 		// Ensure we can look back far enough
 		if currentBlockHeight <= blockDepth {
@@ -899,14 +860,7 @@ func RedeemLockedQuai(hc *HeaderChain, header *types.WorkObject, parent *types.W
 				lockupByte := etx.Data()[0]
 				// if lock up byte is 0, the fork change updates the lockup time
 				var lockup uint64
-				if lockupByte == 0 {
-					lockup = params.OldConversionLockPeriod
-					if currentBlockHeight >= params.GoldenAgeForkNumberV1+params.NewConversionLockPeriod {
-						lockup = params.NewConversionLockPeriod
-					}
-				} else {
-					lockup = params.LockupByteToBlockDepth[lockupByte]
-				}
+				lockup = params.LockupByteToBlockDepth[lockupByte]
 				if lockup == blockDepth {
 					balance := params.CalculateCoinbaseValueWithLockup(etx.Value(), lockupByte)
 
@@ -932,12 +886,7 @@ func RedeemLockedQuai(hc *HeaderChain, header *types.WorkObject, parent *types.W
 			}
 
 			var conversionPeriodValid bool
-			if currentBlockHeight < params.GoldenAgeForkNumberV1 {
-				conversionPeriodValid = blockDepth == params.OldConversionLockPeriod
-			} else {
-				conversionPeriodValid = blockDepth == params.NewConversionLockPeriod
-			}
-
+			conversionPeriodValid = blockDepth == params.ConversionLockPeriod
 			if types.IsConversionTx(etx) && etx.To().IsInQuaiLedgerScope() && conversionPeriodValid {
 				internal, err := etx.To().InternalAddress()
 				if err != nil {
@@ -1076,7 +1025,7 @@ func ValidateQiTxInputs(tx *types.Transaction, chain ChainContext, db ethdb.Read
 				types.MaxDenomination)
 			return nil, errors.New(str)
 		}
-		if currentHeader.NumberU64(common.ZONE_CTX) >= params.GoldenAgeForkNumberV2 && txOut.Lock != nil && txOut.Lock.Sign() != 0 {
+		if txOut.Lock != nil && txOut.Lock.Sign() != 0 {
 			return nil, errors.New("QiTx output has non-zero lock")
 		}
 		outputs[uint(txOut.Denomination)]++
@@ -1120,7 +1069,7 @@ func ValidateQiTxOutputsAndSignature(tx *types.Transaction, chain ChainContext, 
 		if txOutIdx > types.MaxOutputIndex {
 			return nil, fmt.Errorf("tx [%v] exceeds max output index of %d", tx.Hash().Hex(), types.MaxOutputIndex)
 		}
-		if currentHeader.NumberU64(common.ZONE_CTX) >= params.GoldenAgeForkNumberV2 && txOut.Lock != nil && txOut.Lock.Sign() != 0 {
+		if txOut.Lock != nil && txOut.Lock.Sign() != 0 {
 			return nil, errors.New("QiTx output has non-zero lock")
 		}
 		if txOut.Denomination > types.MaxDenomination {
@@ -1142,7 +1091,7 @@ func ValidateQiTxOutputsAndSignature(tx *types.Transaction, chain ChainContext, 
 
 		if toAddr.Location().Equal(location) && toAddr.IsInQuaiLedgerScope() { // Qi->Quai conversion
 			conversion = true
-			if currentHeader.NumberU64(common.ZONE_CTX) < params.GoldenAgeForkNumberV2 && txOut.Denomination < params.MinQiConversionDenomination {
+			if txOut.Denomination < params.MinQiConversionDenomination {
 				return nil, fmt.Errorf("tx %v emits UTXO with value %d less than minimum denomination %d", tx.Hash().Hex(), txOut.Denomination, params.MinQiConversionDenomination)
 			}
 			totalConvertQitOut.Add(totalConvertQitOut, types.Denominations[txOut.Denomination]) // Add to total conversion output for aggregation
@@ -1207,18 +1156,16 @@ func ValidateQiTxOutputsAndSignature(tx *types.Transaction, chain ChainContext, 
 		return nil, fmt.Errorf("tx %032x has insufficient fee for base fee, have %d want %d", tx.Hash(), txFeeInQuai.Uint64(), minimumFeeInQuai.Uint64())
 	}
 	if conversion {
-		if currentHeader.NumberU64(common.ZONE_CTX) >= params.GoldenAgeForkNumberV2 && totalConvertQitOut.Cmp(types.Denominations[params.MinQiConversionDenomination]) < 0 {
+		if totalConvertQitOut.Cmp(types.Denominations[params.MinQiConversionDenomination]) < 0 {
 			return nil, fmt.Errorf("tx %032x emits convert UTXO with value %d less than minimum conversion denomination", tx.Hash(), totalConvertQitOut.Uint64())
 		}
 
-		if currentHeader.NumberU64(common.ZONE_CTX) >= params.GoldenAgeForkNumberV2 {
-			// Since this transaction contains a conversion, check if the required conversion gas is paid
-			// The user must pay this to the miner now, but it is only added to the block gas limit when the ETX is played in the destination
-			requiredGas += params.QiToQuaiConversionGas
-			minimumFeeInQuai = new(big.Int).Mul(new(big.Int).SetUint64(requiredGas), currentHeader.BaseFee())
-			if txFeeInQuai.Cmp(minimumFeeInQuai) < 0 {
-				return nil, fmt.Errorf("tx %032x has insufficient fee for base fee * gas, have %d want %d", tx.Hash(), txFeeInQit.Uint64(), minimumFeeInQuai.Uint64())
-			}
+		// Since this transaction contains a conversion, check if the required conversion gas is paid
+		// The user must pay this to the miner now, but it is only added to the block gas limit when the ETX is played in the destination
+		requiredGas += params.QiToQuaiConversionGas
+		minimumFeeInQuai = new(big.Int).Mul(new(big.Int).SetUint64(requiredGas), currentHeader.BaseFee())
+		if txFeeInQuai.Cmp(minimumFeeInQuai) < 0 {
+			return nil, fmt.Errorf("tx %032x has insufficient fee for base fee * gas, have %d want %d", tx.Hash(), txFeeInQit.Uint64(), minimumFeeInQuai.Uint64())
 		}
 		ETXPCount++
 		if ETXPCount > etxPLimit {
@@ -1226,9 +1173,6 @@ func ValidateQiTxOutputsAndSignature(tx *types.Transaction, chain ChainContext, 
 		}
 		usedGas += params.ETXGas
 
-		if currentHeader.NumberU64(common.ZONE_CTX) < params.GoldenAgeForkNumberV2 {
-			txFeeInQit.Sub(txFeeInQit, txFeeInQit) // Fee goes entirely to gas to pay for conversion
-		}
 	}
 
 	if usedGas > currentHeader.GasLimit() {
@@ -1376,9 +1320,6 @@ func ProcessQiTx(tx *types.Transaction, chain ChainContext, checkSig bool, isFir
 		if toAddr.Location().Equal(location) && toAddr.IsInQuaiLedgerScope() { // Qi->Quai conversion
 			conversion = true
 			convertAddress = toAddr
-			if currentHeader.NumberU64(common.ZONE_CTX) < params.GoldenAgeForkNumberV2 && txOut.Denomination < params.MinQiConversionDenomination {
-				return nil, nil, nil, fmt.Errorf("tx %v emits UTXO with value %d less than minimum denomination %d", tx.Hash().Hex(), txOut.Denomination, params.MinQiConversionDenomination), nil
-			}
 			totalConvertQitOut.Add(totalConvertQitOut, types.Denominations[txOut.Denomination]) // Add to total conversion output for aggregation
 			outputs[uint(txOut.Denomination)] -= 1                                              // This output no longer exists because it has been aggregated
 			delete(addresses, toAddr.Bytes20())
@@ -1458,46 +1399,27 @@ func ProcessQiTx(tx *types.Transaction, chain ChainContext, checkSig bool, isFir
 		return nil, nil, nil, fmt.Errorf("tx %032x has insufficient fee for base fee, have %d want %d", tx.Hash(), txFeeInQuai.Uint64(), minimumFeeInQuai.Uint64()), nil
 	}
 	if conversion {
-		if currentHeader.NumberU64(common.ZONE_CTX) >= params.GoldenAgeForkNumberV2 && totalConvertQitOut.Cmp(types.Denominations[params.MinQiConversionDenomination]) < 0 {
+		if totalConvertQitOut.Cmp(types.Denominations[params.MinQiConversionDenomination]) < 0 {
 			return nil, nil, nil, fmt.Errorf("tx %032x emits convert UTXO with value %d less than minimum conversion denomination", tx.Hash(), totalConvertQitOut.Uint64()), nil
 		}
-		var etxInner types.ExternalTx
-		if currentHeader.NumberU64(common.ZONE_CTX) < params.GoldenAgeForkNumberV2 {
-			// Since this transaction contains a conversion, the rest of the tx gas is given to conversion
-			remainingTxFeeInQuai := misc.QiToQuai(parent, txFeeInQit)
-			// Fee is basefee * gas, so gas remaining is fee remaining / basefee
-			remainingGas := new(big.Int).Div(remainingTxFeeInQuai, currentHeader.BaseFee())
-			if remainingGas.Uint64() > (currentHeader.GasLimit() / params.MinimumEtxGasDivisor) {
-				// Limit ETX gas to max ETX gas limit (the rest is burned)
-				remainingGas = new(big.Int).SetUint64(currentHeader.GasLimit() / params.MinimumEtxGasDivisor)
-			}
-			ETXPCount++
-			if ETXPCount > *etxPLimit {
-				return nil, nil, nil, fmt.Errorf("tx [%v] emits too many cross-prime ETXs for block. emitted: %d, limit: %d", tx.Hash().Hex(), ETXPCount, etxPLimit), nil
-			}
-			etxInner = types.ExternalTx{Value: totalConvertQitOut, To: &convertAddress, Sender: common.ZeroAddress(location), EtxType: types.ConversionType, OriginatingTxHash: tx.Hash(), Gas: remainingGas.Uint64()} // Value is in Qits not Denomination
-		} else {
-			// Since this transaction contains a conversion, check if the required conversion gas is paid
-			// The user must pay this to the miner now, but it is only added to the block gas limit when the ETX is played in the destination
-			requiredGas += params.QiToQuaiConversionGas
-			minimumFeeInQuai = new(big.Int).Mul(new(big.Int).SetUint64(requiredGas), currentHeader.BaseFee())
-			if txFeeInQuai.Cmp(minimumFeeInQuai) < 0 {
-				return nil, nil, nil, fmt.Errorf("tx %032x has insufficient fee for base fee * gas: %d, have %d want %d", tx.Hash(), requiredGas, txFeeInQit.Uint64(), minimumFeeInQuai.Uint64()), nil
-			}
-			ETXPCount++
-			if ETXPCount > *etxPLimit {
-				return nil, nil, nil, fmt.Errorf("tx [%v] emits too many cross-prime ETXs for block. emitted: %d, limit: %d", tx.Hash().Hex(), ETXPCount, etxPLimit), nil
-			}
-			etxInner = types.ExternalTx{Value: totalConvertQitOut, To: &convertAddress, Sender: common.ZeroAddress(location), EtxType: types.ConversionType, OriginatingTxHash: tx.Hash(), Gas: 0} // Value is in Qits not Denomination
+
+		// Since this transaction contains a conversion, check if the required conversion gas is paid
+		// The user must pay this to the miner now, but it is only added to the block gas limit when the ETX is played in the destination
+		requiredGas += params.QiToQuaiConversionGas
+		minimumFeeInQuai = new(big.Int).Mul(new(big.Int).SetUint64(requiredGas), currentHeader.BaseFee())
+		if txFeeInQuai.Cmp(minimumFeeInQuai) < 0 {
+			return nil, nil, nil, fmt.Errorf("tx %032x has insufficient fee for base fee * gas: %d, have %d want %d", tx.Hash(), requiredGas, txFeeInQit.Uint64(), minimumFeeInQuai.Uint64()), nil
 		}
+		ETXPCount++
+		if ETXPCount > *etxPLimit {
+			return nil, nil, nil, fmt.Errorf("tx [%v] emits too many cross-prime ETXs for block. emitted: %d, limit: %d", tx.Hash().Hex(), ETXPCount, etxPLimit), nil
+		}
+		etxInner := types.ExternalTx{Value: totalConvertQitOut, To: &convertAddress, Sender: common.ZeroAddress(location), EtxType: types.ConversionType, OriginatingTxHash: tx.Hash(), Gas: 0} // Value is in Qits not Denomination
 		*usedGas += params.ETXGas
 		if err := gp.SubGas(params.ETXGas); err != nil {
 			return nil, nil, nil, err, nil
 		}
 		etxs = append(etxs, &etxInner)
-		if currentHeader.NumberU64(common.ZONE_CTX) < params.GoldenAgeForkNumberV2 {
-			txFeeInQit.Sub(txFeeInQit, txFeeInQit) // Fee goes entirely to gas to pay for conversion
-		}
 	}
 	elapsedTime = time.Since(stepStart)
 	stepTimings["Fee Verification"] = elapsedTime
