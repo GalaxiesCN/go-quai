@@ -24,9 +24,9 @@ import (
 )
 
 const (
-	GasLimitBoundDivisor    uint64 = 1024    // The bound divisor of the gas limit, used in update calculations.
-	PercentGasUsedThreshold uint64 = 90      // Percent Gas used threshold at which the gas limit adjusts
-	GenesisGasLimit         uint64 = 5000000 // Gas limit of the Genesis block.
+	GasLimitBoundDivisor    uint64 = 1024     // The bound divisor of the gas limit, used in update calculations.
+	PercentGasUsedThreshold uint64 = 90       // Percent Gas used threshold at which the gas limit adjusts
+	GenesisGasLimit         uint64 = 12000000 // Gas limit of the Genesis block.
 
 	StateCeil                 uint64 = 20000000 // Maximum the StateCeil may ever be
 	StateLimitBoundDivisor    uint64 = 1024     // The bound divisor of the gas limit, used in update calculations.
@@ -149,8 +149,7 @@ const (
 	TREE_EXPANSION_WAIT_COUNT = 1024
 
 	// 与锁定有关的时间周期
-	OldConversionLockPeriod       uint64 = 10 // The number of zone blocks that a conversion output is locked for
-	NewConversionLockPeriod       uint64 = 7200
+	ConversionLockPeriod          uint64 = 7200
 	MinQiConversionDenomination          = 10
 	ConversionConfirmationContext        = common.PRIME_CTX // A conversion requires a single coincident Dom confirmation
 	QiToQuaiConversionGas                = 100000           // The gas used to convert Qi to Quai
@@ -176,8 +175,7 @@ var (
 	DifficultyAdjustmentFactor int64  = 40                                                          // This is the factor that divides the log of the change in the difficulty
 	MinQuaiConversionAmount           = new(big.Int).Mul(big.NewInt(10000000000), big.NewInt(GWei)) // 0.000000001 Quai
 	MaxWorkShareCount                 = 16
-	OldWorkSharesThresholdDiff        = 3 // Number of bits lower than the target that the default consensus engine uses
-	NewWorkSharesThresholdDiff        = 4 // Number of bits lower than the target that the default consensus engine uses
+	WorkSharesThresholdDiff           = 4 // Number of bits lower than the target that the default consensus engine uses
 	WorkSharesInclusionDepth          = 3 // Number of blocks upto which the work shares can be referenced and this is protocol enforced
 	// 根据不同的参数0-3来选择锁定的深度和奖励的比例
 	LockupByteToBlockDepth   = make(map[uint8]uint64)
@@ -196,15 +194,8 @@ var (
 	BaseFeeMultiplier             = big.NewInt(50)
 )
 
-const (
-	GoldenAgeForkNumberV1       = 180000
-	GoldenAgeForkNumberV2       = 588000
-	GoldenAgeForkGraceNumber    = 100
-	GoldenAgeGracePaymentPeriod = 6000
-)
-
 func init() {
-	LockupByteToBlockDepth[0] = OldConversionLockPeriod
+	LockupByteToBlockDepth[0] = ConversionLockPeriod
 	LockupByteToBlockDepth[1] = 30240  // 1.75 days
 	LockupByteToBlockDepth[2] = 60480  // 3.5 days
 	LockupByteToBlockDepth[3] = 120960 // 7 days
@@ -231,10 +222,8 @@ func RegionEntropyTarget(expansionNum uint8) *big.Int {
 }
 
 func MinGasLimit(number uint64) uint64 {
-	if number < GoldenAgeForkNumberV1 {
-		return 5000000
-	} else if number < GoldenAgeForkNumberV2 {
-		return 10000000
+	if number < TimeToStartTx {
+		return 0
 	} else {
 		return 12000000
 	}
